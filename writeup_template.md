@@ -20,6 +20,8 @@
 [image1]: ./misc_images/Running_demo.png
 [image2]: ./misc_images/Joints.jpg
 [image3]: ./misc_images/misc3.png
+[image4]: ./misc_images/10_picks_passed.png
+
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/972/view) Points
 ### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
@@ -134,19 +136,61 @@ T0_EE= T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6 * T6_EE
 
 #### 3. Decouple Inverse Kinematics problem into Inverse Position Kinematics and inverse Orientation Kinematics; doing so derive the equations to calculate all individual joint angles.
 
-And here's where you can draw out and show your math for the derivation of your theta angles. 
+* And here's where you can draw out and show your math for the derivation of your theta angles. 
 
 ![alt text][image3]
 
+* There is an extra operation needed to adjust the dicrepency between the DH table and URDF because the URDF is set up as links not joint angles. I learned link first and i make more sense to me then all the complicated math of DH tables.
 
-see below for derivations of theta angles.
+
+[see link for URDF file](https://github.com/muchowsn/RoboND-Kinematics-Project/blob/master/kuka_arm/urdf/kr210.urdf.xacro)
+
+* see below for derivations of theta angles.
 
 ### Project Implementation
 
 #### 1. Fill in the `IK_server.py` file with properly commented python code for calculating Inverse Kinematics based on previously performed Kinematic Analysis. Your code must guide the robot to successfully complete 8/10 pick and place cycles. Briefly discuss the code you implemented and your results. 
+* Start off my defining variables
+```python
+d1, d2, d3, d4, d5, d6, d7 = symbols('d1:8') # link offset
+a0, a1, a2, a3, a4, a5, a6 = symbols('a0:7') # Link length
+aplha0, aplha1, aplha2, aplha3, aplha4, aplha5, aplha6 = symbols('aplha0:7') # Twist angle
+#joint angle symbols
+q1, q2, q3, q4, q5, q6, q7 = symbols('q1:8')
+```
+* Then create DH_Table to make initialization cleaner for calculating the TF_Matrix. and create TF_matrix to be able to create individual joint transforsm
 
+```python
+DH_Table = {aplha0:           0, a0:      0, d1:   .75, q1:            q1,
+            aplha1:     -pi/2.0, a1:   0.35, d2:     0, q2:  -pi/2.0 + q2,
+            aplha2:           0, a2:   1.25, d3:     0, q3:            q3,
+            aplha3:     -pi/2.0, a3: -0.054, d4:   1.5, q4:            q4,
+            aplha4:     -pi/2.0, a4:      0, d5:     0, q5:            q5,
+            aplha5:     -pi/2.0, a5:      0, d6:     0, q6:            q6,
+            aplha6:           0, a6:      0, d7: 0.303, q7:             0 }
+        #Define Modified DH Transformations matrix
+def TF_Matrix(alpha, a, d, q):
+     TF = Matrix ([[           cos(q),            -sin(q),           0,             a],
+                   [sin(q)*cos(alpha),  cos(q)*cos(alpha), -sin(alpha), -sin(alpha)*d],
+                   [sin(q)*sin(alpha),  cos(q)*sin(alpha),  cos(alpha),  cos(alpha)*d],
+                   [                0,                  0,           0,             1]])
+     return TF
+```
+* Set each individual joint angles and joint 0 to End effector.
 
-* Find theta 1 by:<br/>
+```python
+T0_1  = TF_Matrix(aplha0, a0, d1, q1).subs(DH_Table)
+T1_2  = TF_Matrix(aplha1, a1, d2, q2).subs(DH_Table)
+T2_3  = TF_Matrix(aplha2, a2, d3, q3).subs(DH_Table)
+T3_4  = TF_Matrix(aplha3, a3, d4, q4).subs(DH_Table)
+T4_5  = TF_Matrix(aplha4, a4, d5, q5).subs(DH_Table)
+T5_6  = TF_Matrix(aplha5, a5, d6, q6).subs(DH_Table)
+T6_EE = TF_Matrix(aplha6, a6, d7, q7).subs(DH_Table) 
+
+T0_EE= T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6 * T6_EE
+```
+
+* Then i can start to find theta 1 by:<br/>
 ```python
 theta1 = atan2(WC[1], WC[0]) # where WC[1] and WC[0] are the wrist center y and x coordinates, respectively.
 ```
@@ -192,8 +236,38 @@ else:
 ```
 
 
+## Results for pick and place simulation
 
+|grab	|pick/place	|eff-pose	|start	     |stop	     |time	     |time/eff-pose	|PASS/FAIL|
+|---------|--------------|---------|--------------|--------------|--------------|--------------|---------|
+|1	     |grab	     |10	     |1518452896	|1518452898	|2.495630026	|0.2495630026	|PASS     |
+|	     |drop	     |54	     |1518452919	|1518452929	|9.85532999	|0.1825061109	|PASS|
+|2	     |grab	     |27	     |1518452960	|1518452965	|4.868379831	|0.1803103641	|PASS|
+|	     |drop	     |10	     |1518452980	|1518452982	|2.119339943	|0.2119339943	|PASS|
+|3	     |grab	     |25	     |1518453005	|1518453010	|5.699530125	|0.227981205	|PASS|
+|	     |drop	     |16	     |1518453040	|1518453043	|3.746379852	|0.2341487408	|PASS|
+|4	     |grab	     |18	     |1518453081	|1518453086	|4.981790066	|0.2767661148	|PASS|
+|	     |drop	     |51	     |1518453109	|1518453118	|9.320749998	|0.1827598039	|PASS|
+|5	     |grab	     |37	     |1518453155	|1518453163	|7.396090031	|0.1998943252	|PASS|
+|	     |drop     	|33	     |1518453182	|1518453189	|7.13677001	|0.2162657579	|PASS|
+|6	     |grab     	|33	     |1518453222	|1518453230	|7.968909979	|0.2414821206	|PASS|
+|	     |drop     	|16	     |1518453252	|1518453256	|3.40241003	|0.2126506269	|PASS|
+|7	     |grab     	|25	     |1518453287	|1518453292	|5.203779936	|0.2081511974	|PASS|
+|	     |drop     	|31	     |1518453310	|1518453316	|6.382349968	|0.205882257	|PASS|
+|8	     |grab     	|10	     |1518453352	|1518453355	|2.759629965	|0.2759629965	|PASS|
+|	     |drop     	|33	     |1518453378	|1518453384	|6.030149937	|0.1827318163	|PASS|
+|9	     |grab     	|10	     |1518453411	|1518453414	|2.824679852	|0.2824679852	|PASS|
+|	     |drop     	|49	     |1518453436	|1518453443	|7.13251996	|0.1455616318	|PASS|
+|10	     |grab     	|17	     |1518453472	|1518453476	|4.089510202	|0.2405594237	|PASS|
+|	     |drop     	|45	     |1518453493	|1518453501	|8.024429798	|0.1783206622	|PASS|
+|	     |			|         |              |              |min	          |0.1455616318	|10/10         |
+|	     |			|         |              |              |max	          |0.2824679852	|              |    
+|	     |		     |		|              |              |average  	|0.2168795013	|              |
 
+The results we acceptable. It took on average .022 seconds to calculate 1 eff-pose this can add up when your calculating 51+ poses. It was fairly consistant with a delta of .15 seconds between the max and min eff-pose calculation. The calculation depend on the agorithm and processing power. so you could always throw more compute at this problem to speed it up or improve the agorithm.
 
+see picture for 10 cylinders in bucket<br/>
+
+![alt text][image4]
 
 
