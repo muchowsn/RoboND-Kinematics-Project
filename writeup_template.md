@@ -19,7 +19,7 @@
 
 [image1]: ./misc_images/Running_demo.png
 [image2]: ./misc_images/Joints.jpg
-[image3]: ./misc_images/misc2.png
+[image3]: ./misc_images/misc3.png
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/972/view) Points
 ### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
@@ -136,17 +136,64 @@ T0_EE= T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6 * T6_EE
 
 And here's where you can draw out and show your math for the derivation of your theta angles. 
 
-![alt text][image2]
+![alt text][image3]
+
+
+see below for derivations of theta angles.
 
 ### Project Implementation
 
 #### 1. Fill in the `IK_server.py` file with properly commented python code for calculating Inverse Kinematics based on previously performed Kinematic Analysis. Your code must guide the robot to successfully complete 8/10 pick and place cycles. Briefly discuss the code you implemented and your results. 
 
 
-Here I'll talk about the code, what techniques I used, what worked and why, where the implementation might fail and how I might improve it if I were going to pursue this project further.  
+* Find theta 1 by:<br/>
+```python
+theta1 = atan2(WC[1], WC[0]) # where WC[1] and WC[0] are the wrist center y and x coordinates, respectively.
+```
+
+* For Theta 2 and 3 I use SSS to find angles of the triangle.<br/>
+```python
+side_a = 1.501
+side_b = sqrt(pow((sqrt(WC[0] * WC[0] + WC[1] * WC[1]) - 0.35),2) + pow((WC[2] -0.75), 2))
+side_c = 1.25
+
+angle_a = acos((side_b * side_b + side_c * side_c - side_a * side_a) / (2 * side_b * side_c))
+angle_b = acos((side_a * side_a + side_c * side_c - side_b * side_b) / (2 * side_a * side_c))
+angle_c = acos((side_a * side_a + side_b * side_b - side_c * side_c) / (2 * side_a * side_b))
+
+theta2 = pi / 2 - angle_a - atan2(WC[2] - 0.75, sqrt(WC[0] * WC[0] + WC[1] * WC[1]) - 0.35)
+theta3 = pi / 2 - (angle_b + 0.036) # 0.036 accounts for the dag in link4 of -0.054m
+```
+
+* For theta4, theta5, theta6 I found the rotational matrices.<br/>
+```python
+R0_3 = T0_1[0:3, 0:3] * T1_2[0:3, 0:3] * T2_3[0:3, 0:3]
+R0_3 = R0_3.evalf(subs={q1: theta1, q2: theta2, q3: theta3})
+R3_6 = Transpose(R0_3) * ROT_EE
+```
+
+* Find infividual Rotational Matrix Element. <br/>
+```python
+r12, r13 = R3_6[0, 1], R3_6[0, 2]
+r21, r22, r23 = R3_6[1, 0], R3_6[1, 1], R3_6[1, 2]
+r32, r33 = R3_6[2, 1], R3_6[2, 2]
+```
+
+* Then calculate theta4, theta5, and theta6. First calculate Theta5 to see if its larger than 0, this is to check which position the arm is in. then calculate theta4 and theta theta5 is above or below 0. by using atan2 you get already take into account the angle limits.
+```python
+theta5 = atan2(sqrt(r13**2 + r33**2), r23)
+             
+if sin(theta5) < 0:
+     theta4 = atan2(-r33, r13)
+     theta6 = atan2(r22, -r21)
+else:
+     theta4 = atan2(r33, -r13)
+     theta6 = atan2(-r22, r21)            
+```
 
 
-And just for fun, another example image:
-![alt text][image3]
+
+
+
 
 
